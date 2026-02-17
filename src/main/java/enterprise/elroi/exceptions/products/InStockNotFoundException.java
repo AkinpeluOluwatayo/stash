@@ -1,7 +1,7 @@
 package enterprise.elroi.exceptions.products;
 
-public class InStockNotFoundException extends RuntimeException {
-  public InStockNotFoundException(String message) {
-    super(message);
-  }
+public class InStockNotFoundException extends ReduceStockNotFoundException {
+    public InStockNotFoundException(String message) {
+        super(message);
+    }
 }

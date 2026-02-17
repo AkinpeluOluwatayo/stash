@@ -4,106 +4,130 @@ import enterprise.elroi.data.models.Order;
 import enterprise.elroi.data.repository.OrderRepository;
 import enterprise.elroi.dto.requests.OrderRequests;
 import enterprise.elroi.dto.responses.OrderResponses;
-import enterprise.elroi.services.logistics.LogisticsInterface;
+import enterprise.elroi.exceptions.orderAndTransaction.CancelOrderNotFoundException;
+import enterprise.elroi.exceptions.orderAndTransaction.ConfirmOrderNotFoundException;
+import enterprise.elroi.exceptions.orderAndTransaction.GetOrderByIdOrderNotFoundException;
 import enterprise.elroi.utils.mapper.OrderMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 @Service
-public class LogisticsImplementation implements LogisticsInterface {
+public class OrderImplementation implements OrderInterface {
 
     @Autowired
     private OrderRepository orderRepository;
 
+
+    private Order findOrder(UUID id, Supplier<? extends RuntimeException> exceptionSupplier) {
+        return orderRepository.findById(id).orElseThrow(exceptionSupplier);
+    }
+
+    private OrderResponses buildErrorResponse(String message) {
+        OrderResponses response = new OrderResponses();
+        response.setMessage(message);
+        response.setSuccess(false);
+        return response;
+    }
+
+    private OrderResponses buildSuccessResponse(Order order, String message) {
+        OrderResponses response = OrderMapper.toResponse(order);
+        response.setMessage(message);
+        response.setSuccess(true);
+        return response;
+    }
+
+    private List<OrderResponses> mapToResponseList(Page<Order> orders) {
+        return orders.stream()
+                .map(order -> buildSuccessResponse(order, null))
+                .collect(Collectors.toList());
+    }
+
+
     @Override
-    public OrderResponses updateDeliveryAddress(OrderRequests request) {
-        Order order = orderRepository.findById(request.getOrderId())
-                .orElseThrow(() -> new RuntimeException("Order not found"));
-
-        if (!order.getStatus().equals("PENDING")) {
-            OrderResponses response = new OrderResponses();
-            response.setMessage("Address can only be updated while order is PENDING.");
-            response.setSuccess(false);
-            return response;
-        }
-
+    public OrderResponses placeOrder(OrderRequests request) {
+        Order order = new Order();
+        order.setBuyerId(request.getBuyerId());
+        order.setSellerId(request.getSellerId());
+        order.setProductId(request.getProductId());
         order.setAddress(request.getAddress());
+        order.setStatus("PENDING");
+        order.setOrderedAt(LocalDateTime.now());
         order.setUpdatedAt(LocalDateTime.now());
         orderRepository.save(order);
 
-        OrderResponses response = OrderMapper.toResponse(order);
-        response.setMessage("Delivery address updated successfully.");
-        response.setSuccess(true);
-        return response;
+        return buildSuccessResponse(order, "Order placed successfully.");
     }
 
     @Override
-    public OrderResponses markAsShipped(OrderRequests request) {
-        Order order = orderRepository.findById(request.getOrderId())
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+    public OrderResponses confirmOrder(String orderId) {
+        Order order = findOrder(UUID.fromString(orderId),
+                () -> new ConfirmOrderNotFoundException("Order not found"));
 
-        if (!order.getStatus().equals("CONFIRMED")) {
-            OrderResponses response = new OrderResponses();
-            response.setMessage("Order must be CONFIRMED before it can be marked as SHIPPED.");
-            response.setSuccess(false);
-            return response;
-        }
+        if (!order.getStatus().equals("PENDING"))
+            return buildErrorResponse("Only PENDING orders can be confirmed.");
 
-        order.setStatus("SHIPPED");
-        order.setShippedAt(LocalDateTime.now());
+        order.setStatus("CONFIRMED");
+        order.setConfirmedAt(LocalDateTime.now());
         order.setUpdatedAt(LocalDateTime.now());
         orderRepository.save(order);
 
-        OrderResponses response = OrderMapper.toResponse(order);
-        response.setMessage("Order marked as shipped.");
-        response.setSuccess(true);
-        return response;
+        return buildSuccessResponse(order, "Order confirmed successfully.");
     }
 
     @Override
-    public OrderResponses markAsDelivered(OrderRequests request) {
-        Order order = orderRepository.findById(request.getOrderId())
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+    public OrderResponses cancelOrder(String orderId) {
+        Order order = findOrder(UUID.fromString(orderId),
+                () -> new CancelOrderNotFoundException("Order not found"));
 
-        if (!order.getStatus().equals("SHIPPED")) {
-            OrderResponses response = new OrderResponses();
-            response.setMessage("Order must be SHIPPED before it can be marked as DELIVERED.");
-            response.setSuccess(false);
-            return response;
-        }
+        if (order.getStatus().equals("DELIVERED") || order.getStatus().equals("CANCELLED"))
+            return buildErrorResponse("Order cannot be cancelled at this stage.");
 
-        order.setStatus("DELIVERED");
-        order.setDeliveredAt(LocalDateTime.now());
+        order.setStatus("CANCELLED");
+        order.setCancelledAt(LocalDateTime.now());
         order.setUpdatedAt(LocalDateTime.now());
         orderRepository.save(order);
 
-        OrderResponses response = OrderMapper.toResponse(order);
-        response.setMessage("Order marked as delivered.");
-        response.setSuccess(true);
-        return response;
+        return buildSuccessResponse(order, "Order cancelled successfully.");
     }
 
     @Override
-    public OrderResponses getTrackingStatus(String orderId) {
-        Order order = orderRepository.findById(UUID.fromString(orderId))
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+    public OrderResponses getOrderById(String orderId) {
+        Order order = findOrder(UUID.fromString(orderId),
+                () -> new GetOrderByIdOrderNotFoundException("Order not found"));
 
-        OrderResponses response = OrderMapper.toResponse(order);
-        response.setMessage("Tracking status retrieved.");
-        response.setSuccess(true);
-        return response;
+        return buildSuccessResponse(order, "Order retrieved successfully.");
     }
 
     @Override
-    public boolean validateAddress(String address) {
-        if (address == null || address.trim().isEmpty()) {
-            return false;
-        }
-        // Basic validation — ensure address is at least 10 characters
-        // You can plug in a real address validation API like Google Maps here
-        return address.trim().length() >= 10;
+    public List<OrderResponses> getOrders(int page, int pageSize) {
+        Pageable pageable = PageRequest.of(page, pageSize);
+        return mapToResponseList(orderRepository.findAll(pageable));
+    }
+
+    @Override
+    public List<OrderResponses> getOrdersByBuyer(String buyerId, int page, int pageSize) {
+        Pageable pageable = PageRequest.of(page, pageSize);
+        return mapToResponseList(orderRepository.findByBuyerId(UUID.fromString(buyerId), pageable));
+    }
+
+    @Override
+    public List<OrderResponses> getOrdersBySeller(String sellerId, int page, int pageSize) {
+        Pageable pageable = PageRequest.of(page, pageSize);
+        return mapToResponseList(orderRepository.findBySellerId(UUID.fromString(sellerId), pageable));
+    }
+
+    @Override
+    public List<OrderResponses> getOrdersByStatus(String status, int page, int pageSize) {
+        Pageable pageable = PageRequest.of(page, pageSize);
+        return mapToResponseList(orderRepository.findByStatus(status, pageable));
     }
 }
