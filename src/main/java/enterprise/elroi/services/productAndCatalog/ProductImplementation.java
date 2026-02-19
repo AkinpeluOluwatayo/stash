@@ -23,6 +23,7 @@ public class ProductImplementation implements ProductInterface {
 
     @Autowired
     private ProductRepository productRepository;
+
     private Product findProduct(UUID id, Supplier<? extends RuntimeException> exceptionSupplier) {
         return productRepository.findById(id).orElseThrow(exceptionSupplier);
     }
@@ -45,7 +46,6 @@ public class ProductImplementation implements ProductInterface {
                 .collect(Collectors.toList());
     }
 
-
     @Override
     public ProductResponses createProduct(ProductRequests request) {
         Product product = new Product();
@@ -54,6 +54,10 @@ public class ProductImplementation implements ProductInterface {
         product.setDescription(request.getDescription());
         product.setPrice(request.getPrice());
         product.setQuantityAvailable(request.getQuantityAvailable());
+
+        // FIX: Explicitly setting the Image URL
+        product.setImageUrl(request.getImageUrl());
+
         product.setDeleted(false);
         product.setCreatedAt(LocalDateTime.now());
         product.setUpdatedAt(LocalDateTime.now());
@@ -74,6 +78,12 @@ public class ProductImplementation implements ProductInterface {
         product.setDescription(request.getDescription());
         product.setPrice(request.getPrice());
         product.setQuantityAvailable(request.getQuantityAvailable());
+
+        // FIX: Allow updating the Image URL if provided
+        if (request.getImageUrl() != null) {
+            product.setImageUrl(request.getImageUrl());
+        }
+
         product.setUpdatedAt(LocalDateTime.now());
         productRepository.save(product);
 

@@ -14,4 +14,5 @@ public class ProductRequests {
     private double minPrice;  // added for search
     private double maxPrice;  // added for search
     private String productId; // added for update/delete
+    private String imageUrl;
 }

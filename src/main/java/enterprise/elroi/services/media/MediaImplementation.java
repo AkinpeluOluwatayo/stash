@@ -25,19 +25,21 @@ public class MediaImplementation implements MediaInterface {
     public Map<String, Object> generateUploadSignature(String folder, String ownerId) {
         try {
             long timestamp = System.currentTimeMillis() / 1000;
+            String folderPath = "elroi/" + folder + "/" + ownerId;
 
             Map<String, Object> params = new HashMap<>();
             params.put("timestamp", timestamp);
-            params.put("folder", "elroi/" + folder + "/" + ownerId);
+            params.put("folder", folderPath);
 
+            // Generate signature
             String signature = cloudinary.apiSignRequest(params, apiSecret);
 
             Map<String, Object> result = new HashMap<>();
             result.put("signature", signature);
             result.put("timestamp", timestamp);
-            result.put("api_key", apiKey);
-            result.put("folder", "elroi/" + folder + "/" + ownerId);
-            result.put("cloud_name", cloudinary.config.cloudName);
+            result.put("apiKey", apiKey);        // Changed to camelCase
+            result.put("folder", folderPath);
+            result.put("cloudName", cloudinary.config.cloudName); // Changed to camelCase
 
             return result;
         } catch (Exception e) {

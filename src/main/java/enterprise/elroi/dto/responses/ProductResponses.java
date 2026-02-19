@@ -15,11 +15,12 @@ public class ProductResponses {
     private int quantityAvailable;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private boolean deleted;        // added for delete response
-    private String message;         // added for delete/stock responses
-    private int updatedStock;       // added for stock update response
-    private List<ProductResponses> products; // added for list response
-    private int totalPages;         // added for list response
-    private int currentPage;        // added for list response
-    private long totalElements;     // added for list response
+    private boolean deleted;
+    private String message;
+    private int updatedStock;
+    private List<ProductResponses> products;
+    private int totalPages;
+    private int currentPage;
+    private long totalElements;
+    private String imageUrl;
 }
